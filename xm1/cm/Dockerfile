@@ -10,17 +10,17 @@ ARG SQL_PASSWORD="HASH-epsom-sunset-cost7!"
 ARG SQL_DB_PREFIX="Sitecore"
 
 RUN Set-ExecutionPolicy Bypass -Scope Process -Force; iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
-RUN choco install vcredist2015 -Y
+RUN choco install vcredist2015 webdeploy urlrewrite -Y
 
-# Install WebDeploy
-ENV WEBDEPLOY_MSI="webdeploy.msi"
-ADD http://download.microsoft.com/download/0/1/D/01DC28EA-638C-4A22-A57B-4CEF97755C6C/WebDeploy_amd64_en-US.msi ${WEBDEPLOY_MSI}
-RUN Start-Process msiexec.exe -ArgumentList '/i', $env:WEBDEPLOY_MSI, '/quiet', '/norestart' -NoNewWindow -Wait
+# # Install WebDeploy
+# ENV WEBDEPLOY_MSI="webdeploy.msi"
+# ADD http://download.microsoft.com/download/0/1/D/01DC28EA-638C-4A22-A57B-4CEF97755C6C/WebDeploy_amd64_en-US.msi ${WEBDEPLOY_MSI}
+# RUN Start-Process msiexec.exe -ArgumentList '/i', $env:WEBDEPLOY_MSI, '/quiet', '/norestart' -NoNewWindow -Wait
 
-# Install IIS URL Rewrite
-ENV URLREWRITE_MSI="urlrewrite.msi"
-ADD http://download.microsoft.com/download/D/D/E/DDE57C26-C62C-4C59-A1BB-31D58B36ADA2/rewrite_amd64_en-US.msi ${URLREWRITE_MSI}
-RUN Start-Process msiexec.exe -ArgumentList '/i', $env:URLREWRITE_MSI, '/quiet', '/norestart' -NoNewWindow -Wait
+# # Install IIS URL Rewrite
+# ENV URLREWRITE_MSI="urlrewrite.msi"
+# ADD http://download.microsoft.com/download/D/D/E/DDE57C26-C62C-4C59-A1BB-31D58B36ADA2/rewrite_amd64_en-US.msi ${URLREWRITE_MSI}
+# RUN Start-Process msiexec.exe -ArgumentList '/i', $env:URLREWRITE_MSI, '/quiet', '/norestart' -NoNewWindow -Wait
 
 # Install SIF
 RUN Install-PackageProvider -Name NuGet -Force; `
@@ -66,7 +66,8 @@ RUN Install-SitecoreConfiguration -Path $env:SIF_CONFIG `
     -SqlFormsUser $env:SQL_USER `
     -SqlFormsPassword $env:SQL_PASSWORD `
     -SolrCorePrefix $env:SQL_DB_PREFIX `
-    -Skip "RemoveDefaultBinding", "CreateBindingsWithThumprint", "CreateHostHeader", "CreateBindingsWithDevelopmentThumprint", "StartAppPool", "StartWebsite", "UpdateSolrSchema"
+    -Skip "RemoveDefaultBinding", "CreateBindingsWithThumprint", "CreateHostHeader", `
+    "CreateBindingsWithDevelopmentThumprint", "StartAppPool", "StartWebsite", "UpdateSolrSchema"
 
 # Reset workdir
 WORKDIR /
@@ -77,13 +78,11 @@ RUN Clear-WebConfiguration -PSPath ('IIS:\Sites\{0}' -f $env:SITENAME) -Filter '
     Set-Itemproperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\Dnscache\Parameters' -Name ServerPriorityTimeLimit -Value 0 -Type DWord; `
     Copy-Item -Path 'C:/install/*.config' -Destination ('C:/inetpub/{0}/App_Config/Include' -f $env:SITENAME)
 
-# Cleanup
+# Cleanup and Start Site
 RUN Start-Process msiexec.exe -ArgumentList '/x', $env:WEBDEPLOY_MSI, '/quiet', '/norestart' -NoNewWindow -Wait; `
     Uninstall-Module SitecoreInstallFramework -Force; `
     Remove-Item 'C:/install' -Force -Recurse; `
     Remove-Item $env:WEBDEPLOY_MSI -Force; `
-    Remove-Item $env:URLREWRITE_MSI -Force
-
-# Start site
-RUN Start-WebAppPool -Name $env:SITENAME; `
+    Remove-Item $env:URLREWRITE_MSI -Force; `
+    Start-WebAppPool -Name $env:SITENAME; `
     Start-Website -Name $env:SITENAME
