@@ -1,5 +1,5 @@
 # escape=`
-FROM microsoft/aspnet:4.7.1-windowsservercore-1709
+FROM microsoft/aspnet
 
 SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
 
@@ -8,6 +8,9 @@ ARG SQL_SERVER="sql"
 ARG SQL_USER="sa"
 ARG SQL_PASSWORD="HASH-epsom-sunset-cost7!"
 ARG SQL_DB_PREFIX="Sitecore"
+
+RUN Set-ExecutionPolicy Bypass -Scope Process -Force; iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
+RUN choco install vcredist2015 -Y
 
 # Install WebDeploy
 ENV WEBDEPLOY_MSI="webdeploy.msi"
@@ -22,7 +25,7 @@ RUN Start-Process msiexec.exe -ArgumentList '/i', $env:URLREWRITE_MSI, '/quiet',
 # Install SIF
 RUN Install-PackageProvider -Name NuGet -Force; `
     Register-PSRepository -Name SitecoreGallery -SourceLocation https://sitecore.myget.org/F/sc-powershell/api/v2; `
-    Install-Module SitecoreInstallFramework -RequiredVersion 1.2.0 -Force
+    Install-Module SitecoreInstallFramework -RequiredVersion 1.0.2 -Force
 
 # Remove base image defaults
 RUN Remove-Website -Name 'Default Web Site'
@@ -38,7 +41,7 @@ RUN Expand-Archive -Path '*.zip' -DestinationPath '.'; `
     Expand-Archive -Path '*Configuration files*.zip' -DestinationPath '.'
 
 # Modify config to skip database install
-ENV SITENAME="sc"
+ENV SITENAME="sc9docker"
 ENV SIF_CONFIG="./sitecore-XM1-cm.json"
 RUN $config = Get-Content $env:SIF_CONFIG | Where-Object { $_ -notmatch '^\s*\/\/'} | Out-String | ConvertFrom-Json; `
     $config.Tasks.InstallWDP.Params.Arguments | Add-Member -Name 'Skip' -Value @(@{'ObjectName' = 'dbDacFx'}, @{'ObjectName' = 'dbFullSql'}) -MemberType NoteProperty; `
@@ -63,7 +66,7 @@ RUN Install-SitecoreConfiguration -Path $env:SIF_CONFIG `
     -SqlFormsUser $env:SQL_USER `
     -SqlFormsPassword $env:SQL_PASSWORD `
     -SolrCorePrefix $env:SQL_DB_PREFIX `
-    -Skip "RemoveDefaultBinding", "CreateBindingsWithThumprint", "CreateHostHeader", "CreateBindingsWithDevelopmentThumprint", "StartAppPool", "StartWebsite"
+    -Skip "RemoveDefaultBinding", "CreateBindingsWithThumprint", "CreateHostHeader", "CreateBindingsWithDevelopmentThumprint", "StartAppPool", "StartWebsite", "UpdateSolrSchema"
 
 # Reset workdir
 WORKDIR /
